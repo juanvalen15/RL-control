@@ -50,26 +50,56 @@ check_env(env)
 
 env = DummyVecEnv([lambda: env])  # Wrap for compatibility
 
-# Define the PPO model with Adaptive KL Penalty: hyperparameters 
-
+# Define the PPO model with Adaptive KL Penalty 
+# Hyperparameter Table
+# | Hyperparameter      | Effect |
+# |---------------------|--------|
+# | learning_rate       | Controls step size in policy updates |
+# | n_steps             | Determines how much data is collected before updating |
+# | batch_size          | Controls how many samples are used per update |
+# | n_epochs            | Determines how many times each batch is used per PPO update |
+# | gamma               | Controls how much future rewards are considered |
+# | gae_lambda          | Adjusts the balance between bias and variance in advantage estimation |
+# | clip_range          | Prevents overly large updates to the policy |
+# | ent_coef            | Encourages exploration by adding randomness to action selection |
+# | target_kl           | Prevents drastic policy changes |
+# | total_timesteps     | Defines the total number of training steps |
 
 ppo_model = PPO(
     policy=ActorCriticPolicy,
     env=env,
-    learning_rate=3e-4, # Controls how much the model updates its policy per training step
-    n_steps=2048, # The number of environment steps collected before updating the policy
-    batch_size=64, # The number of samples used per training iteration
-    n_epochs=15, # The number of times each batch of data is used to update the policy per PPO update ste
-    gamma=0.995, # Discount factor: determines how much future rewards are valued compared to immediate rewards
-    gae_lambda=0.95, # Generalized Advantage Estimation: balances bias vs. variance tradeoffin advantage estimation
-    clip_range=0.2, # The maximum ratio between the new and old policy probabilities
-    ent_coef=0.01, # Encourages exploration by adding entropy to the loss function
-    target_kl=0.01,  # Target KL divergence: ensures updates do not change the policy too aggressively
+    learning_rate=3e-4, 
+    n_steps=2048, 
+    batch_size=64,
+    n_epochs=15, 
+    gamma=0.995, 
+    gae_lambda=0.95, 
+    clip_range=0.2, 
+    ent_coef=0.01, 
+    target_kl=0.01,  
     verbose=1
 )
 
-# Train the PPO agent
-ppo_model.learn(total_timesteps=100000) # Defines how many steps the PPO agent trains
+# Train the PPO agent and log controller updates
+train_intervals = []
+policy_updates = []
+
+def log_policy_updates(model, steps):
+    obs = env.reset()
+    actions = []
+    for _ in range(10):  # Sample a few steps to track policy behavior
+        action, _ = model.predict(obs)
+        actions.append(action[0][0])
+        obs, _, _, _ = env.step(action)
+    train_intervals.append(steps)
+    policy_updates.append(np.mean(actions))  # Log mean action value
+
+# Training with logging
+total_timesteps = 10000
+for step in range(0, total_timesteps, 1000):
+    ppo_model.learn(total_timesteps=1000)
+    log_policy_updates(ppo_model, step + 1000)
+
 
 
 # Test the trained model and collect data
@@ -103,6 +133,15 @@ plt.xlabel("Time Step")
 plt.ylabel("State Value")
 plt.title("Comparison of First-Order System Step Response vs. RL-Controlled Response")
 plt.legend()
+plt.grid()
+plt.show()
+
+# Plot policy updates
+plt.figure(figsize=(8, 5))
+plt.plot(train_intervals, policy_updates, marker='o', linestyle='-')
+plt.xlabel("Training Steps")
+plt.ylabel("Mean Action Value")
+plt.title("Evolution of Controller Output During Training")
 plt.grid()
 plt.show()
    
